@@ -1,28 +1,35 @@
-const express = require('express');
-const dotenv = require('dotenv');
-const path = require('path');
-const connectDB = require('./src/config/db');
+require("dotenv").config();
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const connectDB = require("./src/config/db");
 
-dotenv.config({ path: path.resolve(__dirname, '.env') });
+const authRoutes    = require("./src/routes/authRoutes");
+const userRoutes    = require("./src/routes/userRoutes");
+const serviceRoutes = require("./src/routes/serviceRoutes");   // ← NEW
+// const providerRoutes = require("./src/routes/providerRoutes"); // next module
+
+const { errorHandler, notFound } = require("./src/middleware/errorHandler");
 
 const app = express();
-const port = process.env.PORT || 5000;
+
+connectDB();
 
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-app.get('/health', (_req, res) => {
-	res.status(200).json({ status: 'ok' });
-});
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.use("/api/auth",     authRoutes);
+app.use("/api/users",    userRoutes);
+app.use("/api/services", serviceRoutes);   // ← NEW
+// app.use("/api/providers", providerRoutes);
 
-const startServer = async () => {
-	await connectDB();
+app.get("/", (req, res) =>
+  res.json({ success: true, message: "HomeServ API is running 🚀" })
+);
 
-	app.listen(port, () => {
-		console.log(`Server running on port ${port}`);
-	});
-};
+app.use(notFound);
+app.use(errorHandler);
 
-startServer().catch((error) => {
-	console.error('Failed to start server:', error.message);
-	process.exit(1);
-});
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
