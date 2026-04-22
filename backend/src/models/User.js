@@ -54,8 +54,8 @@ const userSchema = new mongoose.Schema(
     },
     // Email verification OTP
     emailOtp: {
-      code:      { type: String, select: false },
-      expiresAt: { type: Date,   select: false },
+      code:      { type: String },
+      expiresAt: { type: Date },
     },
     // Password reset token
     passwordResetToken:   { type: String, select: false },
@@ -70,11 +70,10 @@ const userSchema = new mongoose.Schema(
 );
 
 // ── Pre-save: hash password ───────────────────────────────────────────────────
-userSchema.pre("save", async function (next) {
-  if (!this.isModified("password")) return next();
+userSchema.pre("save", async function () {
+  if (!this.isModified("password")) return;
   const salt = await bcrypt.genSalt(12);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // ── Instance: compare password ────────────────────────────────────────────────

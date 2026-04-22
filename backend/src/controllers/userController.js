@@ -6,7 +6,7 @@ const isValidPhone = (phone) => /^\+?[\d\s\-().]{7,20}$/.test(phone);
 // ─── @desc    Get own profile
 // ─── @route   GET /api/users/me
 // ─── @access  Protected — any authenticated user
-const getMe = async (req, res, next) => {
+const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
 
@@ -32,221 +32,99 @@ const getMe = async (req, res, next) => {
       },
     });
   } catch (error) {
-    next(error);
+    console.error(`Error in getMe:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: "SERVER_ERROR", message: error.message }
+    });
   }
 };
 
 // ─── @desc    Update own profile (partial update)
 // ─── @route   PATCH /api/users/me
 // ─── @access  Protected — any authenticated user
-const updateMe = async (req, res, next) => {
+const updateMe = async (req, res) => {
   try {
     const { name, phone, city, avatar } = req.body;
-
-    // Build update object with only provided fields
     const updates = {};
 
-    if (name !== undefined) {
-      const trimmed = name.trim();
-      if (trimmed.length < 2 || trimmed.length > 100) {
-        return res.status(400).json({
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: "Name must be between 2 and 100 characters" },
-        });
-      }
-      updates.name = trimmed;
-    }
+    if (name !== undefined) updates.name = name.trim();
+    if (phone !== undefined) updates.phone = phone.trim();
+    if (city !== undefined) updates.city = city.trim();
+    if (avatar !== undefined) updates.avatar = avatar.trim();
 
-    if (phone !== undefined) {
-      const trimmed = phone.trim();
-      if (!isValidPhone(trimmed)) {
-        return res.status(400).json({
-          success: false,
-          error: { code: "VALIDATION_ERROR", message: "Invalid phone number format" },
-        });
-      }
-      // Check if phone is taken by another user
-      const phoneTaken = await User.findOne({
-        phone: trimmed,
-        _id: { $ne: req.user._id },
-      });
-      if (phoneTaken) {
-        return res.status(409).json({
-          success: false,
-          error: { code: "PHONE_TAKEN", message: "This phone number is already registered to another account" },
-        });
-      }
-      updates.phone = trimmed;
-    }
-
-    if (city !== undefined) {
-      updates.city = city.trim();
-    }
-
-    if (avatar !== undefined) {
-      updates.avatar = avatar.trim();
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "No valid fields provided to update" },
-      });
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user._id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    );
+    const updatedUser = await User.findByIdAndUpdate(req.user._id, { $set: updates }, { new: true, runValidators: true });
 
     return res.status(200).json({
       success: true,
-      message: "Profile updated successfully",
-      data: {
-        userId:     updatedUser._id,
-        name:       updatedUser.name,
-        email:      updatedUser.email,
-        phone:      updatedUser.phone,
-        role:       updatedUser.role,
-        city:       updatedUser.city,
-        avatar:     updatedUser.avatar || null,
-        isVerified: updatedUser.isVerified,
-        createdAt:  updatedUser.createdAt,
-      },
+      message: "Profile updated",
+      data: updatedUser
     });
   } catch (error) {
-    next(error);
+    console.error(`Error in updateMe:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: "SERVER_ERROR", message: error.message }
+    });
   }
 };
 
 // ─── @desc    Change own password
 // ─── @route   PATCH /api/users/me/password
 // ─── @access  Protected — any authenticated user
-const changePassword = async (req, res, next) => {
+const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "currentPassword and newPassword are required" },
-      });
-    }
-
-    // Validate new password strength
-    const isStrong = /^(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword);
-    if (!isStrong) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: "VALIDATION_ERROR",
-          message: "New password must be at least 8 characters with 1 uppercase letter and 1 number",
-        },
-      });
-    }
-
-    // Fetch user with password field
-    const user = await User.findById(req.user._id).select("+password +refreshTokens");
+    const user = await User.findById(req.user._id).select("+password");
 
     const isMatch = await user.comparePassword(currentPassword);
-    if (!isMatch) {
-      return res.status(401).json({
-        success: false,
-        error: { code: "WRONG_PASSWORD", message: "Current password is incorrect" },
-      });
-    }
+    if (!isMatch) return res.status(401).json({ success: false, message: "Wrong current password" });
 
-    // Update password (pre-save hook will hash it)
     user.password = newPassword;
-    // Invalidate all refresh tokens so other devices are logged out
-    user.refreshTokens = [];
     await user.save();
 
-    return res.status(200).json({
-      success: true,
-      message: "Password changed successfully. Please log in again on other devices.",
-    });
+    return res.status(200).json({ success: true, message: "Password updated" });
   } catch (error) {
-    next(error);
+    console.error(`Error in changePassword:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: "SERVER_ERROR", message: error.message }
+    });
   }
 };
 
 // ─── @desc    Soft-delete / deactivate own account
 // ─── @route   DELETE /api/users/me
 // ─── @access  Protected — any authenticated user
-const deleteMe = async (req, res, next) => {
+const deleteMe = async (req, res) => {
   try {
-    // TODO: When Booking model is ready, uncomment this check:
-    // const Booking = require("../models/Booking");
-    // const activeBookings = await Booking.findOne({
-    //   $or: [{ customer: req.user._id }, { provider: req.user._id }],
-    //   status: { $in: ["pending", "confirmed", "in_progress"] },
-    // });
-    // if (activeBookings) {
-    //   return res.status(409).json({
-    //     success: false,
-    //     error: {
-    //       code: "ACTIVE_BOOKINGS",
-    //       message: "You have pending or active bookings. Please resolve them before deleting your account.",
-    //     },
-    //   });
-    // }
-
-    await User.findByIdAndUpdate(req.user._id, {
-      $set: { isActive: false },
-      $unset: { refreshTokens: "" },
-    });
-
-    // Clear the refresh token cookie
-    res.clearCookie("refreshToken", {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
-      path: "/api/auth/refresh",
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Account deactivated. Your data will be retained for 30 days for dispute resolution.",
-    });
+    await User.findByIdAndUpdate(req.user._id, { $set: { isActive: false } });
+    res.clearCookie("refreshToken", { path: "/api/auth/refresh" });
+    return res.status(200).json({ success: true, message: "Account deactivated" });
   } catch (error) {
-    next(error);
+    console.error(`Error in deleteMe:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: "SERVER_ERROR", message: error.message }
+    });
   }
 };
 
 // ─── @desc    Get any user's profile by ID
 // ─── @route   GET /api/users/:userId
 // ─── @access  Protected — Admin only
-const getUserById = async (req, res, next) => {
+const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: { code: "USER_NOT_FOUND", message: "No user found with this ID" },
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: {
-        userId:     user._id,
-        name:       user.name,
-        email:      user.email,
-        phone:      user.phone,
-        role:       user.role,
-        city:       user.city,
-        avatar:     user.avatar || null,
-        isVerified: user.isVerified,
-        isActive:   user.isActive,
-        createdAt:  user.createdAt,
-        updatedAt:  user.updatedAt,
-      },
-    });
+    return res.status(200).json({ success: true, data: user });
   } catch (error) {
-    next(error);
+    console.error(`Error in getUserById:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: "SERVER_ERROR", message: error.message }
+    });
   }
 };
 

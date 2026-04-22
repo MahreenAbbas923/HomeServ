@@ -1,0 +1,21 @@
+{
+  "name": "homeserv",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MahreenAbbas923/HomeServ.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/MahreenAbbas923/HomeServ/issues"
+  },
+  "homepage": "https://github.com/MahreenAbbas923/HomeServ#readme"
+}
