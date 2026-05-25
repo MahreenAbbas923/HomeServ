@@ -1,13 +1,7 @@
 const Service         = require("../models/Service");
 const ServiceCategory = require("../models/ServiceCategory");
 
-// ════════════════════════════════════════════════════════════════════════════
-//  CATEGORY ENDPOINTS
-// ════════════════════════════════════════════════════════════════════════════
 
-// ─── @desc    List all active categories
-// ─── @route   GET /api/services/categories
-// ─── @access  Public
 const getCategories = async (req, res) => {
   try {
     const categories = await ServiceCategory.find({ isActive: true }).sort({ name: 1 });
@@ -31,9 +25,7 @@ const getCategories = async (req, res) => {
   }
 };
 
-// ─── @desc    Create a new category
-// ─── @route   POST /api/services/categories
-// ─── @access  Admin only
+
 const createCategory = async (req, res) => {
   try {
     const { name, description, icon } = req.body;
@@ -69,13 +61,6 @@ const createCategory = async (req, res) => {
   }
 };
 
-// ════════════════════════════════════════════════════════════════════════════
-//  SERVICE LISTING ENDPOINTS
-// ════════════════════════════════════════════════════════════════════════════
-
-// ─── @desc    Browse / search all active services with filters & pagination
-// ─── @route   GET /api/services
-// ─── @access  Public
 const getServices = async (req, res) => {
   try {
     const {
@@ -134,9 +119,6 @@ const getServices = async (req, res) => {
   }
 };
 
-// ─── @desc    Create a new service listing
-// ─── @route   POST /api/services
-// ─── @access  Provider only
 const createService = async (req, res) => {
   try {
     const { title, description, categoryId, basePrice, pricingType, images } = req.body;
@@ -155,9 +137,7 @@ const createService = async (req, res) => {
   }
 };
 
-// ─── @desc    Get a single service by ID
-// ─── @route   GET /api/services/:serviceId
-// ─── @access  Public
+
 const getServiceById = async (req, res) => {
   try {
     const service = await Service.findById(req.params.serviceId).populate("category").populate("provider");
@@ -173,9 +153,6 @@ const getServiceById = async (req, res) => {
   }
 };
 
-// ─── @desc    Update a service listing (partial)
-// ─── @route   PATCH /api/services/:serviceId
-// ─── @access  Owning Provider or Admin
 const updateService = async (req, res) => {
   try {
     const updated = await Service.findByIdAndUpdate(req.params.serviceId, { $set: req.body }, { new: true });
@@ -189,9 +166,10 @@ const updateService = async (req, res) => {
   }
 };
 
-// ─── @desc    Soft-delete a service listing
-// ─── @route   DELETE /api/services/:serviceId
-// ─── @access  Owning Provider or Admin
+
+//   delete a service listing
+//    DELETE /api/services/:serviceId
+
 const deleteService = async (req, res) => {
   try {
     await Service.findByIdAndUpdate(req.params.serviceId, { $set: { isActive: false } });

@@ -1,26 +1,23 @@
 const ServiceRequest = require('../models/ServiceRequest');
-const Service = require('../models/Service');
 
 // @desc    Create a service request
 // @route   POST /api/requests
 // @access  Private/Customer
 exports.createRequest = async (req, res) => {
   try {
-    const { serviceId, description, expectedPrice, location, preferredDate } = req.body;
+    const { serviceType, description, expectedPrice, location, preferredDate } = req.body;
 
-    const service = await Service.findById(serviceId);
-    if (!service) {
-      return res.status(404).json({ success: false, message: 'Service not found' });
+    if (!serviceType || !description || !expectedPrice || !location) {
+      return res.status(400).json({ success: false, message: 'serviceType, description, expectedPrice and location are required' });
     }
 
     const request = await ServiceRequest.create({
       customerId: req.user._id,
-      serviceId,
-      serviceType: service.title,
+      serviceType,
       description,
-      expectedPrice,
+      expectedPrice: Number(expectedPrice),
       location,
-      preferredDate
+      preferredDate: preferredDate || undefined
     });
 
     return res.status(201).json({

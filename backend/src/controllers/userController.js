@@ -3,9 +3,7 @@ const User = require("../models/User");
 // ─── Helper: validate phone (basic) ──────────────────────────────────────────
 const isValidPhone = (phone) => /^\+?[\d\s\-().]{7,20}$/.test(phone);
 
-// ─── @desc    Get own profile
-// ─── @route   GET /api/users/me
-// ─── @access  Protected — any authenticated user
+
 const getMe = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
@@ -40,9 +38,7 @@ const getMe = async (req, res) => {
   }
 };
 
-// ─── @desc    Update own profile (partial update)
-// ─── @route   PATCH /api/users/me
-// ─── @access  Protected — any authenticated user
+
 const updateMe = async (req, res) => {
   try {
     const { name, phone, city, avatar } = req.body;
@@ -69,9 +65,7 @@ const updateMe = async (req, res) => {
   }
 };
 
-// ─── @desc    Change own password
-// ─── @route   PATCH /api/users/me/password
-// ─── @access  Protected — any authenticated user
+
 const changePassword = async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -93,9 +87,7 @@ const changePassword = async (req, res) => {
   }
 };
 
-// ─── @desc    Soft-delete / deactivate own account
-// ─── @route   DELETE /api/users/me
-// ─── @access  Protected — any authenticated user
+
 const deleteMe = async (req, res) => {
   try {
     await User.findByIdAndUpdate(req.user._id, { $set: { isActive: false } });
@@ -110,9 +102,7 @@ const deleteMe = async (req, res) => {
   }
 };
 
-// ─── @desc    Get any user's profile by ID
-// ─── @route   GET /api/users/:userId
-// ─── @access  Protected — Admin only
+
 const getUserById = async (req, res) => {
   try {
     const user = await User.findById(req.params.userId);

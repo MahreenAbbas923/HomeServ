@@ -1,7 +1,6 @@
 const Bid = require('../models/Bid');
 const ServiceRequest = require('../models/ServiceRequest');
 const ProviderProfile = require('../models/ProviderProfile');
-const { createNotification } = require('../utils/notificationHelper');
 
 // @desc    Submit a bid on a request
 // @route   POST /api/bids

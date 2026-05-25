@@ -2,15 +2,11 @@ const User = require('../models/User');
 const ProviderProfile = require('../models/ProviderProfile');
 const ServiceRequest = require('../models/ServiceRequest');
 const Bid = require('../models/Bid');
-const Review = require('../models/Review');
-const { createNotification } = require('../utils/notificationHelper');
 
-// @desc    Get pending providers
-// @route   GET /api/admin/providers/pending
-// @access  Private/Admin
+
 exports.getPendingProviders = async (req, res) => {
   try {
-    const providers = await ProviderProfile.find({ isApproved: false }).populate('user', 'name email phone avatar city');
+    const providers = await ProviderProfile.find({ status: 'pending' }).populate('user', 'name email phone avatar city');
     return res.status(200).json({ success: true, count: providers.length, data: providers });
   } catch (error) {
     console.error(`Error in getPendingProviders:`, error.message);
@@ -18,9 +14,6 @@ exports.getPendingProviders = async (req, res) => {
   }
 };
 
-// @desc    Get all providers
-// @route   GET /api/admin/providers
-// @access  Private/Admin
 exports.getAllProviders = async (req, res) => {
   try {
     const providers = await ProviderProfile.find().populate('user', 'name email phone avatar city isActive');
@@ -31,15 +24,13 @@ exports.getAllProviders = async (req, res) => {
   }
 };
 
-// @desc    Approve provider
-// @route   PATCH /api/admin/providers/:id/approve
-// @access  Private/Admin
 exports.approveProvider = async (req, res) => {
   try {
     const profile = await ProviderProfile.findById(req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: 'Not found' });
 
     profile.isApproved = true;
+    profile.status = 'approved';
     await profile.save();
 
     return res.status(200).json({ success: true, message: 'Provider approved' });
@@ -49,15 +40,14 @@ exports.approveProvider = async (req, res) => {
   }
 };
 
-// @desc    Reject provider
-// @route   PATCH /api/admin/providers/:id/reject
-// @access  Private/Admin
+
 exports.rejectProvider = async (req, res) => {
   try {
     const profile = await ProviderProfile.findById(req.params.id);
     if (!profile) return res.status(404).json({ success: false, message: 'Not found' });
 
     profile.isApproved = false;
+    profile.status = 'rejected';
     await profile.save();
 
     return res.status(200).json({ success: true, message: 'Processed' });
@@ -106,18 +96,6 @@ exports.getAllBids = async (req, res) => {
   }
 };
 
-// @desc    Get all reviews
-// @route   GET /api/admin/reviews
-// @access  Private/Admin
-exports.getAllReviews = async (req, res) => {
-  try {
-    const reviews = await Review.find().populate('fromUserId').populate('toUserId').sort('-createdAt');
-    return res.status(200).json({ success: true, count: reviews.length, data: reviews });
-  } catch (error) {
-    console.error(`Error in getAllReviews:`, error.message);
-    return res.status(500).json({ success: false, error: { code: "SERVER_ERROR", message: error.message } });
-  }
-};
 
 // @desc    Get dashboard stats
 // @route   GET /api/admin/stats
@@ -126,7 +104,7 @@ exports.getStats = async (req, res) => {
   try {
     const totalCustomers = await User.countDocuments({ role: 'customer' });
     const totalProviders = await ProviderProfile.countDocuments();
-    const pendingProviders = await ProviderProfile.countDocuments({ isApproved: false });
+    const pendingProviders = await ProviderProfile.countDocuments({ status: 'pending' });
     const totalRequests = await ServiceRequest.countDocuments();
     const openRequests = await ServiceRequest.countDocuments({ status: 'open' });
     const completedRequests = await ServiceRequest.countDocuments({ status: 'completed' });

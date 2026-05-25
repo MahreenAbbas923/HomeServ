@@ -39,7 +39,8 @@ const seed = async () => {
       bio: "Expert in home repairs and maintenance with 15 years experience.",
       specializations: ["Plumbing", "Electrical"],
       serviceAreas: ["Lahore", "Gulberg"],
-      isApproved: true
+      isApproved: true,
+      status: "approved"
     });
 
     console.log("Seeding categories...");

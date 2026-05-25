@@ -46,16 +46,11 @@ const userSchema = new mongoose.Schema(
     },
     isVerified: {
       type: Boolean,
-      default: false,
+      default: true,
     },
     isActive: {
       type: Boolean,
       default: true,
-    },
-    // Email verification OTP
-    emailOtp: {
-      code:      { type: String },
-      expiresAt: { type: Date },
     },
     // Password reset token
     passwordResetToken:   { type: String, select: false },

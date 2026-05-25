@@ -95,6 +95,13 @@ const providerProfileSchema = new mongoose.Schema(
       default: false,
     },
 
+    // Detailed application status
+    status: {
+      type: String,
+      enum: ["draft", "pending", "approved", "rejected"],
+      default: "draft",
+    },
+
     // Computed stats — updated by booking/review events
     avgRating:     { type: Number, default: 0, min: 0, max: 5 },
     completedJobs: { type: Number, default: 0, min: 0 },

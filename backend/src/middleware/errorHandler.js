@@ -1,5 +1,4 @@
-// ─── Global Error Handler ────────────────────────────────────────────────────
-// Place this LAST in server.js: app.use(errorHandler)
+
 
 const errorHandler = (err, req, res, next) => {
   console.error(`[ERROR] ${req.method} ${req.originalUrl} →`, err.message);

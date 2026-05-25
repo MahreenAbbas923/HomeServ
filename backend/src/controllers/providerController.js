@@ -32,13 +32,11 @@ const getDayKey = (date) => {
   return map[date.getDay()];
 };
 
-// ════════════════════════════════════════════════════════════════════════════
-//  ENDPOINTS
-// ════════════════════════════════════════════════════════════════════════════
 
-// ─── @desc    Browse provider profiles with filters & pagination
-// ─── @route   GET /api/providers
-// ─── @access  Public
+
+//   Browse provider profiles with filters & pagination
+//  GET /api/providers
+
 const getProviders = async (req, res) => {
   try {
     const { city, category, minRating, page = 1, limit = 20 } = req.query;
@@ -67,9 +65,10 @@ const getProviders = async (req, res) => {
   }
 };
 
-// ─── @desc    Get full profile of a single provider
-// ─── @route   GET /api/providers/:providerId
-// ─── @access  Public
+
+//    Get full profile of a single provider
+//  GET /api/providers/:providerId
+
 const getProviderById = async (req, res) => {
   try {
     const profile = await ProviderProfile.findById(req.params.providerId).populate("user").lean();
@@ -86,9 +85,9 @@ const getProviderById = async (req, res) => {
   }
 };
 
-// ─── @desc    Update own provider profile (full replace of sub-docs)
-// ─── @route   PUT /api/providers/me
-// ─── @access  Provider only
+//    Update own provider profile (full replace of sub-docs)
+//  PUT /api/providers/me
+
 const updateMyProfile = async (req, res) => {
   try {
     const updated = await ProviderProfile.findOneAndUpdate({ user: req.user._id }, { $set: req.body }, { new: true });
@@ -102,9 +101,9 @@ const updateMyProfile = async (req, res) => {
   }
 };
 
-// ─── @desc    Check provider availability for a specific date
-// ─── @route   GET /api/providers/:providerId/availability
-// ─── @access  Public
+//Check provider availability for a specific date
+//  GET /api/providers/:providerId/availability
+
 const getProviderAvailability = async (req, res) => {
   try {
     const { date } = req.query;
@@ -126,9 +125,43 @@ const getProviderAvailability = async (req, res) => {
   }
 };
 
+const submitProfile = async (req, res) => {
+  try {
+    const profile = await ProviderProfile.findOne({ user: req.user._id });
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "Profile not found" });
+    }
+
+    if (!profile.bio || profile.bio.trim() === "") {
+      return res.status(400).json({ success: false, message: "Bio is required to submit application" });
+    }
+    if (!profile.experience || profile.experience <= 0) {
+      return res.status(400).json({ success: false, message: "Experience is required to submit application" });
+    }
+    if (!profile.serviceAreas || profile.serviceAreas.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one service area is required to submit application" });
+    }
+    if (!profile.specializations || profile.specializations.length === 0) {
+      return res.status(400).json({ success: false, message: "At least one specialization is required to submit application" });
+    }
+
+    profile.status = "pending";
+    await profile.save();
+
+    return res.status(200).json({ success: true, message: "Application submitted for approval", data: profile });
+  } catch (error) {
+    console.error(`Error in submitProfile:`, error.message);
+    return res.status(500).json({
+      success: false,
+      error: { code: "SERVER_ERROR", message: error.message }
+    });
+  }
+};
+
 module.exports = {
   getProviders,
   getProviderById,
   updateMyProfile,
   getProviderAvailability,
+  submitProfile,
 };
